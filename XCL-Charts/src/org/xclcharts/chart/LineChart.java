@@ -144,131 +144,155 @@ public class LineChart extends LnChart{
 		 * @param bd		数据类
 		 * @param type		处理类型
 		 */
-		private boolean renderLine(Canvas canvas, LineData bd,String type,int dataID)
+	private boolean renderLine(Canvas canvas, LineData bd,String type,int dataID)
 		{
 			if(null == categoryAxis || null == dataAxis) return false;
 			
 			if(null == bd)
 			{
-				Log.i(TAG,"传入的线的数据序列参数为空.");
+				Log.e(TAG,"传入的线的数据序列参数为空.");
 				return false;
 			}
 			
 			float initX =  plotArea.getLeft();
             float initY =  plotArea.getBottom();             
 			float lineStartX = initX,lineStartY = initY;         
-            float lineStopX = 0.0f,lineStopY = 0.0f;                               
+            float lineStopX = 0.0f,lineStopY = 0.0f;        
             													
 			//得到分类轴数据集
 			List<String> dataSet =  categoryAxis.getDataSet();
 			if(null == dataSet ||dataSet.size() == 0){
-				Log.w(TAG,"分类轴数据为空.");
+				Log.e(TAG,"分类轴数据为空.");
 				return false;
 			}		
 			//数据序列
 			List<Double> chartValues = bd.getLinePoint();
 			if(null == chartValues ||chartValues.size() == 0 )
 			{
-				Log.w(TAG,"当前分类的线数据序列值为空.");
+				Log.e(TAG,"当前分类的线数据序列值为空.");
 				return false;
 			}
 				
-			//步长	
+			//步长
+			float axisScreenHeight = getPlotScreenHeight();
+			float axisDataHeight = (float) dataAxis.getAxisRange();	
 			float XSteps = 0.0f;	
-			int j = 0; //,childID = 0;	
+			int j = 0,childID = 0;	
 			int tickCount = dataSet.size();		
-			if (1 == tickCount)j = 1;  //label仅一个时右移 !mXCoordFirstTickmarksBegin && 
-					
-			int labeltickCount = getCategoryAxisCount();		
-			XSteps = getVerticalXSteps(labeltickCount );
-						
-			 						
-			float itemAngle = bd.getItemLabelRotateAngle();
-			PlotLine pLine = bd.getPlotLine();   
-			PlotDot pDot = pLine.getPlotDot();	        
-			float radius = pDot.getDotRadius();	
-			double bv = 0.d;
+			if( 0 == tickCount)
+			{
+				Log.e(TAG,"分类轴数据源为0!");
+				return false;
+			}else if (1 == tickCount)  //label仅一个时右移
+			{
+				j = 1;
+			}			
+			int labeltickCount = getCategoryAxisCount();
+			XSteps = getVerticalXSteps(labeltickCount);
 			
+			
+			float itemAngle = bd.getItemLabelRotateAngle();
+			
+			Double lastValue = null;		//当前点的前一个点值，初始为空
+					
 		    //画线
-			int count = chartValues.size();
-			for(int i=0;i<count;i++)
-            {								
-				bv = chartValues.get(i);            	
-            	lineStopY = getVPValPosition(bv);		            	            	
-            	
-            	if(mXCoordFirstTickmarksBegin)
-				{
-            		lineStopX = add(initX , mul((j+1) , XSteps));  
-				}else{
-					lineStopX = add(initX , mul(j , XSteps));  
-				}          
-            	//当柱图与线图混合，且柱图柱形为BarCenterStyle.SPACE时
-            	if(mXCoordFirstTickmarksBegin && 
-            			XEnum.BarCenterStyle.SPACE == mBarCenterStyle)
-            					lineStopX = sub(lineStopX ,div(XSteps,2)); 
-            	            	            	           
-            	if(0 == j)
+			for(Double bv : chartValues)
+            {	
+				if(0 == j)
             	{
             		lineStartX = lineStopX;
             		lineStartY = lineStopY;
             	}
-                        	
-            	if( getLineAxisIntersectVisible() == false &&
-            			Double.compare(bv, dataAxis.getAxisMin()) == 0 )
-            	{
-            		//如果值与最小值相等，即到了轴上，则忽略掉  
-            		lineStartX = lineStopX;
-    				lineStartY = lineStopY;
+				
+				if (bv == null || bv.toString().equals("null"))	//当前点空值 
+				{
+					//lastValue不为空或为空都不绘制
+				}
+				else 											//当前点不为空
+				{
+					//参数值与最大值的比例  照搬到 y轴高度与矩形高度的比例上来 	                                             	
+	            	float vaxlen = (float) MathHelper.getInstance().sub(bv, dataAxis.getAxisMin());				
+					float fvper = div( vaxlen,axisDataHeight );
+					float valuePostion = mul(axisScreenHeight, fvper);			    
+	            
+					
+					//前一个相邻点为空，不绘制，只赋值lineStartX，lineStopX，lineStartY，lineStopY;
+					if (lastValue == null || lastValue.toString().equals("null"))	
+					{
+		            	lineStopX = add(initX , j * XSteps);        	
+		            	lineStopY = sub(initY , valuePostion);  
 
-    				j++;
-            	}else{
-	            	        
-	            	if(type.equalsIgnoreCase("LINE"))
-	            	{	            		
-	            		if(getLineAxisIntersectVisible() == true ||
-	            					Float.compare(lineStartY, initY) != 0 )	
-	            		{	            		
-	            			DrawHelper.getInstance().drawLine(bd.getLineStyle(), 
-	            					lineStartX ,lineStartY ,lineStopX ,lineStopY,
-	            					canvas,pLine.getLinePaint());		            			
-	            		}
-	            	}else if(type.equalsIgnoreCase("DOT2LABEL")){
-	            		
-	            		if(!pLine.getDotStyle().equals(XEnum.DotStyle.HIDE))
-	                	{          
-	                		PlotDotRender.getInstance().renderDot(canvas,pDot,
-	                				lineStopX ,lineStopY,
-	                				pLine.getDotPaint()); //标识图形            		
-	                			                		
-	                		savePointRecord(dataID,i, lineStopX  + mMoveX, lineStopY  + mMoveY,	                		
-					                		lineStopX - radius + mMoveX, 
-					                		lineStopY - radius + mMoveY,
-					    					lineStopX + radius + mMoveX, 
-					    					lineStopY + radius + mMoveY);  
-	            			lineStopX = add(lineStopX  , radius);           			
-	                	}
-	            		
-	            		//显示批注形状
-	    				drawAnchor(getAnchorDataPoint(),dataID,i,canvas,lineStopX - radius,lineStopY,radius);
-	            		
-	            		if(bd.getLabelVisible()) //标签
-	                	{	                	            
-	            			bd.getLabelOptions().drawLabel(canvas, pLine.getDotLabelPaint(), 
-	            					getFormatterItemLabel(bv), lineStopX  - radius, lineStopY,
-	            					itemAngle,bd.getLineColor());
-	                	}
-	            			            		
-	            	}else{
-	            		Log.w(TAG,"未知的参数标识。"); //我不认识你，我不认识你。
-	            		return false;
-	            	}      				
-            	
-					lineStartX = lineStopX;
-					lineStartY = lineStopY;
-	
-					j++;
-            	} //if(bv != dataAxis.getAxisMin())
-            } 				
+		            	lineStartX = lineStopX;
+						lineStartY = lineStopY;
+					}
+					else //前一个相邻点为不为空，绘制
+					{
+						lineStopX = add(initX , j * XSteps);        	
+		            	lineStopY = sub(initY , valuePostion);  
+	   	
+		            	if( getLineAxisIntersectVisible() == false &&
+		            			Double.compare(bv, dataAxis.getAxisMin()) == 0 )
+		            	{
+		            		//如果值与最小值相等，即到了轴上，则忽略掉  
+		            		lineStartX = lineStopX;
+		    				lineStartY = lineStopY;
+		            	}else
+		            	{
+			            	PlotLine pLine = bd.getPlotLine();           
+			            	if(type.equalsIgnoreCase("LINE"))
+			            	{
+			            		
+			            		if(getLineAxisIntersectVisible() == true ||
+			            					Float.compare(lineStartY, initY) != 0 )	
+			            		{	            		
+			            			DrawHelper.getInstance().drawLine(bd.getLineStyle(), 
+			            					lineStartX ,lineStartY ,lineStopX ,lineStopY,
+			            					canvas,pLine.getLinePaint());		            			
+			            		}
+			            	}else if(type.equalsIgnoreCase("DOT2LABEL")){
+			            		
+			            		if(!pLine.getDotStyle().equals(XEnum.DotStyle.HIDE))
+			                	{                		       	
+			                		PlotDot pDot = pLine.getPlotDot();	        
+			                		float radius = pDot.getDotRadius();
+			                		float rendEndX  = lineStopX  + radius;  
+			                		
+			                		PlotDotRender.getInstance().renderDot(canvas,pDot,
+			                				lineStartX ,lineStartY ,
+			                				lineStopX ,lineStopY,
+			                				pLine.getDotPaint()); //标识图形            		
+			                			                		
+			                		savePointRecord(dataID,childID, lineStopX  + mMoveX, lineStopY  + mMoveY,
+			                				lineStopX - radius + mMoveX,lineStopY - radius + mMoveY,
+			                				lineStopX + radius + mMoveX,lineStopY + radius + mMoveY);
+			                		
+			                		childID++;
+			                		
+			            			lineStopX = rendEndX;	            			
+			                	}
+			            		
+			            		if(bd.getLabelVisible()) //标签
+			                	{	                	            			
+			            			DrawHelper.getInstance().drawRotateText(this.getFormatterItemLabel(bv), 
+			    										lineStopX, lineStopY, itemAngle, 
+			    										canvas, pLine.getDotLabelPaint());
+			                	}
+			            			            		
+			            	}else{
+			            		Log.e(TAG,"未知的参数标识。"); //我不认识你，我不认识你。
+			            		return false;
+			            	}      				
+		            	
+							lineStartX = lineStopX;
+							lineStartY = lineStopY;
+		            	}
+					}
+				}
+
+				lastValue = bv;
+            	j++;
+            }
+			
 			return true;
 		}
 					
